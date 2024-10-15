@@ -1,0 +1,24 @@
+#!/bin/bash -l
+#SBATCH -A project ID
+#SBATCH -p core -n 1
+#SBATCH -t 0-08:00:00
+#SBATCH -J lion
+
+#job id: $SLURM_JOB_ID
+#job name (-J): $SLURM_JOB_NAME
+#tmp directory: $SNIC_TMP
+
+module load bioinfo-tools
+module load SLiM/4.0.1
+
+#Usage
+######
+#cd /my_project/Slim/
+
+for S in $(shuf -i 1-100000 -n 50); do for KC_7 in 50 100 150 200 ; do for M in 0 1 5 10 ; do echo "Running with KC_7 ==" ${KC_7}:; sbatch launch_slim.bsh $S $KC_7 $M; echo; done; done;done
+
+seed=$1
+KC_7=$2
+M=$3
+echo 'Running with seed=' $1 'KC_7=' $2	'M=' $3
+slim -s ${seed} -d KGSE_3=50000 -d KGSE_4=5000 -d KGSE_6=2000  -d KC_1=80 -d KC_2=15 -d KC_2a=30  -d KC_3=50 -d KC_4=100 -d KC_5=120 -d KC_6=50 -d KC_7=${KC_7} -d M=${M} Lion_non_WF_genes.slim
