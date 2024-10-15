@@ -1,0 +1,55 @@
+# 1. install GONE
+-----------------
+
+cd GONE/Linux
+
+chmod u+r+x PROGRAMMES/*
+bash script_GONE.sh ../EXAMPLE/example
+
+
+myvcf='Reindeer_Q_dp_rep_SNP.vcf.gz'
+
+#sample list 
+ADV='ADV.txt'
+
+#2 colums formnat, e.g.:
+B100  B100
+
+
+# 2. generate ped file
+----------------------
+
+module load bioinfo-tools plink
+
+#select autosomes
+
+scaff='Chr_1,Chr_2,Chr_3,Chr_4,...,Chr_22'
+
+#1.
+plink --vcf $myvcf -keep $my_pop--chr $scaff --make-bed --allow-extra-chr --real-ref-alleles -recode --out my_pop_GONE
+
+sed 's/\SUPER_//' my_pop_GONE.map > my_pop_GONE2.map
+mv my_pop_GONE2.map my_pop_GONE.map
+
+
+cp ADV*_GONE* GONE/Linux/
+
+# 3. run GONE
+-------------
+
+cd  GONE/Linux/
+
+tmux new -s GONE_Reindeer
+
+bash script_GONE.sh my_pop_GONE
+
+
+Make tables:
+
+paste \
+  <( awk '{print $1}' Output_Ne_my_pop_GONE)\
+  <( awk '{print $2}' Output_Ne_my_pop_GONE )\
+  <( awk '{print $2}' Output_Ne_my_pop2_GONE)\
+> Table_Gone
+
+echo -e "Gen\tmy_pop\tmy_pop2" | cat - Table_Gone  > Table_Gone_Run1.txt
