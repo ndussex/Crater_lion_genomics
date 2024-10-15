@@ -1,0 +1,161 @@
+##########################
+## 1. Run smc++ vcf2smc ##
+##########################
+
+myvcf='myfile.vcf.gz'
+
+mkdir results_divergence_Pop1_Pop2
+
+Pop1='Pop1:ind1,ind2,ind3,ind4,ind5'
+LINES=$(cat 5_chrom_list.txt)
+	for i in $LINES
+	do
+	smc++ vcf2smc "$myvcf" results_divergence_Pop1_Pop2/"Pop1.smc_"$i".gz" "$i" "$Pop1" --ignore-missing -c 1000000
+	done
+
+Pop2='Pop2:ind1,ind2,ind3,ind4,ind5'
+LINES=$(cat 5_chrom_list.txt)
+	for i in $LINES
+	do
+	smc++ vcf2smc "$myvcf" results_divergence_Pop1_Pop2/"Pop2.smc_"$i".gz" "$i" "$Pop2" --ignore-missing -c 1000000
+	done
+
+####################################
+## 2. make joint SFS               #
+####################################
+
+#5 chromosomes
+
+#Pop1
+LINES=$(cat chrom_list.txt)
+	for i in $LINES
+	do
+	smc++ vcf2smc "$myvcf" results_divergence_Pop1_Pop2/"Pop1_Pop2.smc_"$i".gz" "$i" "$Pop1" "$Pop2" --ignore-missing -c 1000000
+	done
+
+#Pop2
+LINES=$(cat chrom_list.txt)
+	for i in $LINES
+	do
+	smc++ vcf2smc "$myvcf" results_divergence_Pop1_Pop2/"Pop2_Pop1.smc_"$i".gz" "$i" "$Pop2" "$Pop1" --ignore-missing -c 1000000
+	done
+
+#Make a directory for bootstrap runs
+mkdir bootstrap_split_Pop1_Pop2
+
+# a. copy data from original dir to first bootstrap dir: results_divergence_RU_SVA_boot_data
+
+mkdir bootstrap_split_Pop1_Pop2
+cd bootstrap_split_Pop1_Pop2
+mkdir results_divergence_Pop1_Pop2_boot_data/
+
+	cp ../results_divergence_Pop1_Pop2/*gz results_divergence_Pop1_Pop2_boot_data/
+
+
+# b. sample randomly 5 chromosomes of of 10 from results_divergence_Pop1_Pop2_boot_data and create 50 dir at the same time
+
+suffixes=("056679.1" "056680.1" "056681.1" "056682.1" "056683.1") #suffix of the chromosome in the format: NC056679.1, and so on. Edit according to your chromosome names
+num_directories=49  # Number of directories/bootstraps to create (50 in this case)
+
+source_directory="results_divergence_Pop1_Pop2_boot_data"
+
+# Create the destination directories
+#change the number after 'i = ' if generating additional directories (e.g., 51 if 50 already created)
+
+for ((i = 1; i <= num_directories + 1; i++))
+do
+    directory="results_divergence_Pop1_Pop2_boot_$i"
+    mkdir -p "$directory"
+done
+
+# Generate 50 different random selections of 10 suffixes
+for ((i = 1; i <= num_directories + 1; i++))
+do
+    destination_directory="results_divergence_Pop1_Pop2_boot_$i"
+    selected_suffixes=($(shuf -e "${suffixes[@]}" -n 3)) #this last number corresponds to the number of chromosome to use in the bootstrap (here: 3 out of 5)
+
+    # Copy files with the selected suffixes to the destination directory
+    for suffix in "${selected_suffixes[@]}"
+    do
+        # Find all files with the given suffix in the source directory
+        files=("$source_directory"/*.smc_NC_"$suffix".gz)
+
+        # Check if there are no files with the given suffix
+        if [ ${#files[@]} -eq 0 ]; then
+            echo "No files found with suffix $suffix"
+            continue
+        fi
+
+        # Copy files to the destination directory
+        for file in "${files[@]}"
+        do
+            cp "$file" "$destination_directory"
+        done
+    done
+done
+
+
+####################################		############################################		
+## 3. estimate each pop. marginally#  and	## 4. marginal estimate of joint demography#   	
+####################################		############################################	
+
+#make out directories
+for dir in results_divergence_Pop1_Pop2_boot_*
+do cd $dir; mkdir Pop1_boot/ Pop2_boot/ Pop1_Pop2_boot; cd ..;
+done
+
+#copy sh in each dir
+
+# bootstrap_smc_divergence.bsh
+for dir in results*
+do cp *sh $dir
+done
+
+#run
+for dir in results*
+do cd $dir; sbatch *sh; cd .. 
+done
+
+#bootstrap_smc_divergence.bsh script contains this: 
+
+#SBATCH -A projectID
+#SBATCH -p core -n 1
+#SBATCH -t 3-00:00:00
+#SBATCH -J smpp_CV
+
+
+module load bioinfo-tools SMC++/1.15.4
+#murate=1.06e-8
+
+smc++ estimate --base Pop1 -o Pop1_boot/ 1.06e-8 Pop1.* -c 100000 --polarization-error 0.5  --ftol 1e-7 --xtol 1e-7 --thinning 1300 --em-iterations 1000 
+smc++ estimate --base Pop2 -o Pop2_boot/ 1.06e-8 Pop2.* -c 1000000 --polarization-error 0.5  --ftol 1e-7 --xtol 1e-7 --thinning 1300 --em-iterations 1000 
+
+#joint estimation
+smc++ split -o Pop1_Pop2_boot Pop1_boot/Pop1.final.json Pop2_boot/Pop2.final.json *.smc*gz -c 1000000 --thinning 1300 --em-iterations 10000  --regularization-penalty 6 --polarization-error 0.5 --ftol 1e-7 --xtol 1e-7
+smc++ plot Pop1_Pop2_joint_years_boot.pdf Pop1_Pop2_boot/model.final.json -g 6 --xlim 1 500000 -c 
+
+####################################
+## 5. copy outputs to 1 dir		   #
+####################################
+
+#this works and appends the parent dir to the *csv file to avoid overwriting
+cd ..
+
+source_dirs=(
+  "bootstrap_split_Pop1_Pop2"
+)
+
+target_dir="bootstrap_split_Pop1_Pop2_all_runs_results"
+filename="Pop1_Pop2_joint_years_boot.csv"
+
+counter=1
+for source_dir in "${source_dirs[@]}"; do
+  find "${source_dir}" -type f -name "${filename}" -print0 | while IFS= read -r -d '' file; do
+    subdirectory="${file%/*}"
+    new_filename="${subdirectory##*/}_${filename%.*}_${counter}.${filename##*.}"
+    cp "${file}" "${target_dir}/${new_filename}"
+    counter=$((counter + 1))
+  done
+done
+
+#export data for stats and plotting in R
