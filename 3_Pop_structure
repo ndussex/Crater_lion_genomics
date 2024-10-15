@@ -1,0 +1,156 @@
+# Population structure analysis
+
+1. PCA
+------
+
+See Generode github paper for details on PCA code: https://github.com/NBISweden/GenErode
+
+
+2. Admixture
+------------
+
+module load bioinfo-tools ADMIXTURE/1.3.0 plink/1.90b4.9
+
+cd Admixture
+
+#1. vcf to ped
+
+
+myvcf='my_vcf.vcf.gz'
+
+plink --vcf $myvcf --allow-extra-chr --recode12 --geno 0.2 --remove genomes_to_exclude.txt --real-ref-alleles --out 20lions --make-bed
+
+DATA="20lions.ped"
+
+
+#2. choose corect K
+###################
+
+#### 
+
+for K in 1 2 3 4 5 6;  \
+do admixture --cv $DATA $K | tee log${K}.out; done
+
+
+#Plot in R:
+###########
+
+library(dplyr)
+library(ggplot2)
+library(doBy)
+library(maditr)
+
+setwd("~/Admixture")
+
+
+### 1st plot with ugly colours
+mycol1<-c('grey','orange')
+mycol2<-c('grey','lightblue','orange')
+mycol3<-c('grey','lightblue','orange','red')
+mycol4<-c('lightblue','red','grey','orange')
+mycol5<-c('purple','lightblue','red','orange','grey')
+
+pdf(paste0('20lions_genomes.pdf'), width=5, height=3)
+par(mfrow=c(5,1),mar=c(1, 1, 0, 0), oma=c(0,1,1,1))
+
+tbl2=read.table("20lions.fmissing0.2.autos.2.Q")
+barplot(t(as.matrix(tbl2)), col=mycol1,
+        xlab="Individual #", ylab="Ancestry")
+
+tbl3=read.table("20lions.fmissing0.2.autos.3.Q")
+barplot(t(as.matrix(tbl3)), col=mycol2,
+        xlab="Individual #", ylab="Ancestry")
+
+tbl4=read.table("20lions.fmissing0.2.autos.4.Q")
+barplot(t(as.matrix(tbl4)), col=mycol3,
+        xlab="Individual #", ylab="Ancestry")
+
+tbl5=read.table("20lions.fmissing0.2.autos.5.Q")
+barplot(t(as.matrix(tbl5)), col=mycol4,
+        xlab="Individual #", ylab="Ancestry")
+
+tbl6=read.table("20lions.fmissing0.2.autos.6.Q")
+barplot(t(as.matrix(tbl6)), col=mycol4,
+        xlab="Individual #", ylab="Ancestry")
+
+dev.off()
+
+
+### reorder table
+
+sample_info<-read.table('../Sample_info.txt',header=TRUE)
+nrow(sample_info)
+head(sample_info)
+sample_order<-read.table('../Sample_order.txt',header=TRUE)
+nrow(sample_order)
+head(sample_order)
+
+#merge admix file with sample ID
+Admix_table_2<-cbind(sample_order,tbl2)
+Admix_table_3<-cbind(sample_order,tbl3)
+Admix_table_4<-cbind(sample_order,tbl4)
+Admix_table_5<-cbind(sample_order,tbl5)
+Admix_table_6<-cbind(sample_order,tbl6)
+
+#create a vector of pop. values
+Pop_K2<-vlookup(Admix_table_2$ID,sample_info, result_column = 2, lookup_column = 1)
+Pop_K3<-vlookup(Admix_table_3$ID,sample_info, result_column = 2, lookup_column = 1)
+Pop_K4<-vlookup(Admix_table_4$ID,sample_info, result_column = 2, lookup_column = 1)
+Pop_K5<-vlookup(Admix_table_5$ID,sample_info, result_column = 2, lookup_column = 1)
+Pop_K6<-vlookup(Admix_table_6$ID,sample_info, result_column = 2, lookup_column = 1)
+#Period<-vlookup(data$V1,sample_info, result_column = 3, lookup_column = 1)
+
+#merge the table + new column
+df2 <- data.frame(id=Admix_table_2$ID,Pop=Pop_K2,K2_1=Admix_table_2$V1, K2_2=Admix_table_2$V2)
+#head(df2) tail(df2)
+df3 <- data.frame(id=Admix_table_3$ID,Pop=Pop_K3,K3_1=Admix_table_3$V1, K3_2=Admix_table_3$V2, K3_3=Admix_table_3$V3)
+df4 <- data.frame(id=Admix_table_4$ID,Pop=Pop_K4,K4_1=Admix_table_4$V1, K4_2=Admix_table_4$V2, K4_3=Admix_table_4$V3,K4_4=Admix_table_4$V4)
+df5 <- data.frame(id=Admix_table_5$ID,Pop=Pop_K5,K5_1=Admix_table_5$V1, K5_2=Admix_table_5$V2, K5_3=Admix_table_5$V3, K5_4=Admix_table_5$V4, K5_5=Admix_table_5$V5)
+df6 <- data.frame(id=Admix_table_6$ID,Pop=Pop_K6,K6_1=Admix_table_6$V1, K6_2=Admix_table_6$V2, K6_3=Admix_table_6$V3, K6_4=Admix_table_6$V4, K6_5=Admix_table_6$V5,K6_6=Admix_table_6$V6)
+
+#reorder dataframes
+vec <-c("Crater","Serengeti","Selous","Botswana","SAfrica")
+df2_ordered <- left_join(data.frame(Pop = vec),df2,by = "Pop")
+df3_ordered <- left_join(data.frame(Pop = vec),df3,by = "Pop")
+df4_ordered <- left_join(data.frame(Pop = vec),df4,by = "Pop")
+df5_ordered <- left_join(data.frame(Pop = vec),df5,by = "Pop")
+df6_ordered <- left_join(data.frame(Pop = vec),df6,by = "Pop")
+
+head(df2_ordered)
+head(df3_ordered)
+head(df4_ordered)
+head(df5_ordered)
+head(df6_ordered)
+### Better Plot
+
+mycol1<-c('#FFA60090','#EEE8CD')
+mycol2<-c('#EEE8CD','#998888','#FFA60080')
+mycol3<-c('#EEE8CD','#2F7F46','#FFA60080','#998888')
+#mycol4<-c('#2F7F46','pink','#998888','#EEE8CD','#FFA60080')
+mycol4<-c('#2F7F46','#CDC8B1','#998888','#EEE8CD','#FFA60080')
+mycol5<-c('#2F7F46','#EEE8CD','#998888','#CDC8B1', 'pink','#FFA60080')
+
+#"#636363","#998888","#63B1C1","#2F7F46","#FBBC70"
+#"Historical","North","Transition", "South","Öland"
+
+pdf(paste0('20lions_admix_plot_0.2_mising.pdf'), width=7, height=2)
+par(mfrow=c(5,1),mar=c(0.4, 1, 0, 0), oma=c(0,1,1,1))
+
+barplot(t(as.matrix(df2_ordered[ , c('K2_1', 'K2_2')])), col=mycol1,
+        xlab="Individual #", ylab="Ancestry")
+
+barplot(t(as.matrix(df3_ordered[ , c('K3_1', 'K3_2', 'K3_3')])), col=mycol2,
+        xlab="Individual #", ylab="Ancestry")
+
+barplot(t(as.matrix(df4_ordered[ , c('K4_1', 'K4_2','K4_3', 'K4_4')])), col=mycol3,
+        xlab="Individual #", ylab="Ancestry")
+
+barplot(t(as.matrix(df5_ordered[ , c('K5_5', 'K5_4','K5_3','K5_2','K5_1')])), col=mycol4,
+            xlab="Individual #", ylab="Ancestry")
+
+K6<-barplot(t(as.matrix(df6_ordered[ , c('K6_6','K6_5', 'K6_4','K6_3','K6_2','K6_1')])), col=mycol5,
+        xlab="Individual #", ylab="Ancestry")
+
+text(K6, par('usr')[3], labels = df5_ordered$id, srt = 45, adj = c(1.1,1.1), xpd = TRUE, cex=1)
+
+dev.off()
