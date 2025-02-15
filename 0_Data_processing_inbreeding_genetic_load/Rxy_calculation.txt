@@ -1,0 +1,168 @@
+library(ggplot2)
+library(doBy)
+library(ggpubr)
+library(gridExtra)
+library(ggsignif)
+library(dplyr)
+library(bootstrap)
+
+setwd("~/SNPeff/Rxy")
+
+
+### 1. High data
+High_freq<-read.table("High_freq.txt", header=T)
+Intergenic132_freq<-read.table("Intergenic_132SNPs.txt", header=T)
+
+#1. ratio PopA vs PopB ### need to divide each ratio by : Intergenic_freq$Greenland*(1-Intergenic_freq$Canada)
+ratio_H_PopA <-High_freq$PopA*(1-High_freq$PopB)
+ratio_H_PopB <-High_freq$PopB*(1-High_freq$PopA)
+ratio_I_PopA <-Intergenic132_freq$PopA*(1-Intergenic132_freq$PopB)
+ratio_I_PopB <-Intergenic132_freq$PopB*(1-Intergenic132_freq$PopA)
+
+
+#Rxy:(non-standardised)
+sum(ratio_PopA)/sum(ratio_PopB)
+
+#standardised
+(sum(ratio_H_PopA)/sum(ratio_I_PopA))/(sum(ratio_H_PopB)/sum(ratio_I_PopB))
+
+
+#mydata: 
+df<-data.frame(ratio_H_PopA,ratio_I_PopA,ratio_H_PopB,ratio_I_PopB)
+n <- 132 #number of observations
+theta <- function(x,df1){ (sum(df1[x,1])/sum(df1[x,2]))/(sum(df1[x,3])/sum(df1[x,4])) }
+results <- jackknife(1:n,theta,df)
+
+#create dataframe
+ratio<-c(results$jack.values)
+length(ratio)
+comparison<-rep(c('PopA. vs PopB.'),each=132)
+length(comparison)
+High<-data.frame(comparison,ratio)
+
+
+### 2. Moderate data
+Mod_freq<-read.table("Moderate_freq.txt", header=T)
+Intergenic10499_freq<-read.table("Intergenic_10499SNPs.txt", header=T)
+
+#ratio PopA vs PopB
+ratio_M_PopA <-Mod_freq$PopA*(1-Mod_freq$PopB)
+ratio_M_PopB <-Mod_freq$PopB*(1-Mod_freq$PopA)
+ratio_I_PopA <-Intergenic10499_freq$PopA*(1-Intergenic10499_freq$PopB)
+ratio_I_PopB <-Intergenic10499_freq$PopB*(1-Intergenic10499_freq$PopA)
+
+#Rxy:
+sum(ratio_M_PopA)/sum(ratio_M_PopB)
+
+
+#standardised
+(sum(ratio_M_PopA)/sum(ratio_I_PopA))/(sum(ratio_M_PopB)/sum(ratio_I_PopB))
+
+#mydata: 
+df2<-data.frame(ratio_M_PopA,ratio_I_PopA,ratio_M_PopB,ratio_I_PopB)
+n <- 10499
+theta <- function(x,df1){ (sum(df1[x,1])/sum(df1[x,2]))/(sum(df1[x,3])/sum(df1[x,4])) }
+results2 <- jackknife(1:n,theta,df2)
+
+#create dataframe
+ratio<-c(results2$jack.values)
+length(ratio)
+comparison<-rep(c('PopA. vs PopB.'),each=10499)
+length(comparison)
+Mod<-data.frame(comparison,ratio)
+
+### 3. Syn
+Syn_freq<-read.table("Syn_freq.txt", header=T)
+Intergenic14810_freq<-read.table("Intergenic_14810SNPs.txt", header=T)
+
+#ratio PopA vs PopB
+ratio_S_PopA <-Syn_freq$PopA*(1-Syn_freq$PopB)
+ratio_S_PopB <-Syn_freq$PopB*(1-Syn_freq$PopA)
+ratio_I_PopA <-Intergenic14810_freq$PopA*(1-Intergenic14810_freq$PopB)
+ratio_I_PopB <-Intergenic14810_freq$PopB*(1-Intergenic14810_freq$PopA)
+
+#Rxy:
+sum(ratio_S_PopA)/sum(ratio_S_PopB)
+
+(sum(ratio_S_PopA)/sum(ratio_I_PopA))/(sum(ratio_S_PopB)/sum(ratio_I_PopB))
+
+#mydata: 
+df3<-data.frame(ratio_S_PopA,ratio_I_PopA,ratio_S_PopB,ratio_I_PopB)
+n <- 14810
+theta <- function(x,df1){ (sum(df1[x,1])/sum(df1[x,2]))/(sum(df1[x,3])/sum(df1[x,4])) }
+results3 <- jackknife(1:n,theta,df3)
+
+#create dataframe
+ratio<-c(results3$jack.values)
+length(ratio)
+comparison<-rep(c('PopA. vs PopB.'),each=14810)
+length(comparison)
+SYN<-data.frame(comparison,ratio)
+
+
+#plot
+#####
+# function for computing mean, DS, max and min values
+min.mean.sd.max <- function(x) {
+  r <- c(min(x), mean(x) - sd(x), mean(x), mean(x) + sd(x), max(x))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+min.mean.sd.max <- function(x) {
+  r <- c(mean(x) - sd(x), mean(x), mean(x) + sd(x))
+  names(r) <- c( "lower", "middle", "upper")
+  r
+}
+
+median <- function(x) {
+  r <- c(min(x), median(x) - sd(x), median(x), median(x) + sd(x), max(x))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+#values < 1 represent a deficit in M or R relative to H. 
+#Rxy distributions are based on jack-knifing
+
+
+
+### Make plot
+
+High$group <- 'High'
+Mod$group <- 'Moderate'
+
+# Combine the dataframes
+combined_data <- rbind(High, Mod)
+
+# Calculate mean and standard deviation for each group and comparison
+summary_data <- combined_data %>%
+  group_by(group, comparison) %>%
+  summarise(mean_ratio = mean(ratio),
+            sd_ratio = sd(ratio))
+
+# Define position for bars
+bar_pos <- position_dodge(width = 0.8)
+
+pdf("Rxy_High_Moderate_syn_PopA_vs_PopB_bars.pdf", width=3, height=5)
+# Plot #best so far
+ggplot(summary_data, aes(x = group, y = mean_ratio, fill = comparison)) +
+  geom_bar(stat = "identity", position = bar_pos, width = 0.2) +
+  #geom_errorbar(aes(ymin = 1, ymax = mean_ratio),
+                #position = bar_pos, width = 0.1, color = "black") +
+  geom_crossbar(aes(ymin = mean_ratio, ymax = 1),
+                position = bar_pos, width = 0.5, color = "black",fatten = 0) +
+  geom_errorbar(aes(ymin = mean_ratio - sd_ratio, ymax = mean_ratio + sd_ratio),
+                position = bar_pos, width = 0.2, color = "black") +
+  ylim(0.8, 1.4) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "black") +
+  #theme_minimal() +
+  theme(panel.background = element_blank(),panel.border = element_rect(color = "black", fill = NA, size = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12)) +
+  guides(fill = FALSE) +
+  scale_fill_manual(values=c("grey")) +
+  scale_x_discrete(labels=c("High","Moderate")) +
+  labs(y = "Rxy", x = "Impact category") 
+dev.off()
