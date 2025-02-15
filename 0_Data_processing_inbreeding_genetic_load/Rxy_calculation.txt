@@ -121,10 +121,6 @@ median <- function(x) {
   r
 }
 
-#values < 1 represent a deficit in M or R relative to H. 
-#Rxy distributions are based on jack-knifing
-
-
 
 ### Make plot
 
