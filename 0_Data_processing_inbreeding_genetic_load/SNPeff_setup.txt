@@ -1,0 +1,85 @@
+### SNPeff
+##########
+
+#1. check annotation
+
+annotation='/References/GCA_018350215.1/data/GCF_018350215.1/genomic.gff'
+gffread $annotation -F -J -g $ANC_REF -y Ancestral_felid_prot.fa -w Ancestral_felid_exons.fa -o Ancestral_felid_no_STOP.gff 
+
+my_gff='Ancestral_genome/Ancestral_felid_no_STOP.gff'
+my_genes='Ancestral_genome/Ancestral_felid_exons.fa'
+my_proteins='Ancestral_genome/Ancestral_felid_prot.fa'
+
+
+#2. build a database# 
+
+nano snpEff.config
+#add this, just under the mouse genome (first few genomes listed):
+
+# Ancfelid genome, version Ancfelid_v1
+Ancfelid_v1.genome : Ancfelid
+
+### add the data to this working dir:
+
+my_gff='Ancestral_felid_no_STOP.gff'
+my_genes='Ancestral_felid_exons.fa'
+my_proteins='Ancestral_felid_prot.fa'
+
+	### create my data dir ###
+
+	mkdir data
+	cd data
+	mkdir Ancfelid_v1 #annotation
+	cd Ancfelid_v1
+	scp $my_gff .
+	scp $my_proteins .
+		
+	mv Ancestral_felid_no_STOP.gff annotation.gff
+	mv Ancestral_felid_prot.fa protein.fa
+
+	#add seq. at the bottom of the annotation
+	cat annotation.gff > genes.gff
+	echo "###"  >> genes.gff
+	echo "##FASTA"  >> genes.gff
+	cat $my_genes  >> genes.gff
+	
+	#convert to gtf
+	gffread genes.gff -T -o genes.gtf
+
+	### create my genome dir
+
+	cd ..
+	mkdir genomes
+	cd genomes
+
+	mygenome='Ancestral_genome/Ancestral_felid_genomes_mapped_Pleo1.1.fasta.fa'
+	ln -s $mygenome Ancfelid_v1.fa
+
+### 2.3 create database
+snpEff=/sw/apps/bioinfo/snpEff/4.3t/rackham/
+cd SNPeff
+
+	java -Xmx8g -jar $snpEff/snpEff.jar build -gtf22 -v Ancfelid_v1 -treatAllAsProteinCoding > database_log
+
+
+#################
+# 3. run snpEff # 
+#################
+
+myvcf='16lions_REF_replaced.vcf.gz'
+
+#split vcf per individual
+
+mkdir vcfs_16lions 
+
+cd vcfs_16lions 
+
+for file in ../16lions_REF_replaced.vcf.gz; do
+	 for sample in `bcftools query -l $file`; do
+	   bcftools view -c1 -Oz -s $sample -o $sample.vcf.gz $file
+	 done
+done
+
+# Run SNPeff:
+cd vcfs_16lions
+for i in $(ls *.vcf.gz| sed 's/.vcf.gz//g'); do sbatch snpEff_16lions.bsh  $i; done
