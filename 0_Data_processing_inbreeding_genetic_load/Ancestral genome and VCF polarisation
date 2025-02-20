@@ -1,0 +1,23 @@
+#1. Ancestral genome generation
+
+# We mapped short reads for domestic cat (SRR1179888-SRR1179901), tiger (SRR13242485) and cheetah (SRR22273180) 
+# to the lion assembly (GCF_018350215.1) and subsampled each of these three genomes to a depth of 6X using the Generode pipeline.
+
+#2. Consensus Ancestral Genome
+
+  #2.1 merge bams manually
+
+#mapped to Pleo1.1
+bams=$(ls *.merged.rmdup.merged.realn.mapped_q30.subs_dp6.bam)
+samtools merge $bams -o Ancestral_merged.bam
+
+  # 2.2 Call consensus
+angsd -i Ancestral_merged.bam -doFasta 2 -doCounts 1 -explode 1 -uniqueOnly 1 -minMapQ 30 -minQ 30 -out Ancestral_felid_genomes_mapped_Pleo1.1.fasta
+
+
+# 3. VCF polarisation
+
+vcf='GCF_018350215.1_P.leo_Ple1_pat1.1_genomic.all.merged.biallelic.fmissing0.0.genome.vcf.gz'
+
+ANC_REF='Ancestral_felid_genomes_mapped_Pleo1.1.fasta.fa'
+python vcf_replace_ref_allele.py --gzvcf $vcf --outgroup $ANC_REF --output 16lions_REF_replaced
