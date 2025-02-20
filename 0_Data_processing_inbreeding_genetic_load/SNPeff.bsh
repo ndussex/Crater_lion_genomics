@@ -1,0 +1,43 @@
+#!/bin/bash -l
+#SBATCH -A proj_ID
+#SBATCH -p core -n 1
+#SBATCH -t 0-01:20:00
+#SBATCH -J snpEff
+
+#job id: $SLURM_JOB_ID
+#job name (-J): $SLURM_JOB_NAME
+#tmp directory: $SNIC_TMP
+
+module load bioinfo-tools
+module load snpEff/4.3t
+
+#Usage
+#for i in $(ls *.vcf.gz| sed 's/.vcf.gz//g'); do sbatch /crex/proj/naiss2023-6-265/nobackup/SNPeff/snpEff_16lions.bsh  $i; done
+
+#copy files from home to tmp directory
+cp vcfs_16lions/${1}*.vcf.gz ${SNIC_TMP}/
+cp npEff.config ${SNIC_TMP}/
+cp -r SNPeff/data ${SNIC_TMP}/
+
+## Move to tmp/ directory
+cd ${SNIC_TMP}
+snpEff=snpEff/4.3t/rackham
+
+mkdir ${1}
+java -Xmx4g -jar $snpEff/snpEff.jar -treatAllAsProteinCoding -no-intergenic -no-intron -v -d -lof Ancfelid_v1 ${1}*.vcf.gz >${1}/${1}.ann.vcf -csvStats ${1}_stats.csv | tee ${1}.log
+java -Xmx4g -jar $snpEff/SnpSift.jar vcfCheck ${1}/${1}.ann.vcf > ${1}/${1}.ann.vcfCheck.txt
+
+cat ${1}/${1}.ann.vcf | java -Xmx4g  -jar $snpEff/SnpSift.jar filter "(countHom() = 1)" > ${1}/${1}.ann_hom.vcf
+cat ${1}/${1}.ann.vcf | java -Xmx4g  -jar $snpEff/SnpSift.jar filter "(countHet() = 1)" > ${1}/${1}.ann_het.vcf
+cat ${1}/${1}.ann.vcf | java -Xmx4g  -jar $snpEff/SnpSift.jar filter "ANN[0].IMPACT has 'HIGH'"  > ${1}/${1}.ann_high.vcf
+cat ${1}/${1}.ann.vcf | java -Xmx4g  -jar $snpEff/SnpSift.jar filter "ANN[0].IMPACT has 'MODERATE'"  > ${1}/${1}.ann_moderate.vcf
+cat ${1}/${1}.ann.vcf | java -Xmx4g  -jar $snpEff/SnpSift.jar filter "ANN[0].IMPACT has 'LOW'"  > ${1}/${1}.ann_low.vcf
+cat ${1}/${1}.ann.vcf | java -Xmx4g  -jar $snpEff/SnpSift.jar filter "ANN[0].EFFECT has 'synonymous_variant'"  > ${1}/${1}.ann_syn.vcf
+
+mv *.html ${1}.html
+mv ${1}.html ${1}
+mv *csv* ${1}
+mv *txt ${1}
+mv *log ${1}
+
+cp -r ${SNIC_TMP}/${1} SNPeff/vcfs_16lions/results
