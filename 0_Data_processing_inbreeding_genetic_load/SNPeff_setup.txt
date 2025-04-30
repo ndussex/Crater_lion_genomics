@@ -4,7 +4,7 @@
 #1. check annotation
 
 annotation='/References/GCA_018350215.1/data/GCF_018350215.1/genomic.gff'
-gffread $annotation -F -J -g $ANC_REF -y Ancestral_felid_prot.fa -w Ancestral_felid_exons.fa -o Ancestral_felid_no_STOP.gff 
+gffread $annotation -F -J -g --no-pseudo  $ANC_REF -y Ancestral_felid_prot.fa -w Ancestral_felid_exons.fa -o Ancestral_felid_no_STOP.gff 
 
 my_gff='Ancestral_genome/Ancestral_felid_no_STOP.gff'
 my_genes='Ancestral_genome/Ancestral_felid_exons.fa'
